@@ -2,6 +2,7 @@
 
 A network utility script to manage network interfaces and log into wi-fi hotspot if not connected, without opening your browser.
 
+```
 \# python .\hotspot_login.py -h
 usage: hotspot_login.py [-h] [-q] [-s [interface]] [-c [interface]] [-e [interface]] [-d [interface]] [-n [interface]] [hotspot]
 
@@ -23,7 +24,8 @@ optional arguments:
     --disable [interface]   disable a network interface
   -n [interface],
     --connected [interface] check if connected to a hotspot
-                        
+```
+
 History:
 
 A friend asked if I could write a script to connect his RaspPi to hotspot(s) automatically. Decided to start with a Windows version which I could use to connect to hotspots w/o using a browser (although Windows will sometimes automagically open a browser/tab and redirect to a login page.)
