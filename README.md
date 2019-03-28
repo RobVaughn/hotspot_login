@@ -1,9 +1,8 @@
 # hotspot_login
 
 A network utility script to manage network interfaces and log into wi-fi hotspot if not connected, without opening your browser.
-
 ```
-\# python .\hotspot_login.py -h
+# python .\hotspot_login.py -h
 usage: hotspot_login.py [-h] [-q] [-s [interface]] [-c [interface]] [-e [interface]] [-d [interface]] [-n [interface]] [hotspot]
 
 Hotspot Login Utility
