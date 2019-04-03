@@ -25,6 +25,10 @@ optional arguments:
     --connected [interface] check if connected to a hotspot
 ```
 
+Notes:
+
+The unit tests for enableIF() and disableIF() to change the state of the network interface can cause some laptop adapters to lock up, such as the Qualcomm Atheros series, if cycled too quickly. Those tests are disabled by default unless a flag is set to run them.
+
 History:
 
 A friend asked if I could write a script to connect his RaspPi to hotspot(s) automatically. Decided to start with a Windows version which I could use to connect to hotspots w/o using a browser (although Windows will sometimes automagically open a browser/tab and redirect to a login page.)
