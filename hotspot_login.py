@@ -55,23 +55,16 @@ def main():
         if len(args.check) == 0: interface = cfg.IF
         else: interface = args.check[0]
 
-        response = "Interface " + interface
-        connected = utils.checkIF(interface)
-        if not connected: response += " not"
-        if not cfg.SILENT: print(response + " connected.")
-
-        if connected: exit(0)
+        if utils.checkIF(interface):
+            if not cfg.SILENT: print("Interface " + interface + " is connected.")
+            exit(0)
         else: exit(1)
 
     elif args.enable is not None:
         if len(args.enable) == 0: interface = cfg.IF
         else: interface = args.enable[0]
-        response = "Interface " + interface + " is"
         retcode = utils.enableIF(interface)
-        if retcode == 0:
-            if not cfg.SILENT: print(response, "enabled.")
-        else:
-            if not cfg.SILENT: print(response, "disabled.")
+        if retcode == 0 and not cfg.SILENT: print("Interface " + interface + " is enabled.")
         exit(retcode)
 
     elif args.disable is not None:
@@ -84,29 +77,39 @@ def main():
             ssid = cfg.LOGIN_INFO[cfg.DEFAULT_LOGIN]['ssid']
         else:
             ssid = args.connected[0]
-        retcode = utils.checkConnection(ssid)
-        if retcode == 0:
-            if not cfg.SILENT: print("Connected to: " + ssid)
+        if utils.checkConnection(ssid):
+            if not cfg.SILENT: print("Connected to " + ssid + ".")
+            exit(0)
         else:
-            if not cfg.SILENT: print("Not connected to: " + ssid)
-        exit(retcode)
+            if not cfg.SILENT: print("Not connected to " + ssid + ".")
+        exit(1)
 
+    # Default usage: $0 [hotspot]
     else:
-        if len(args.hotspot) <= 1:
+        interface = cfg.IF
+        if len(args.hotspot) == 0:
             hotspot = cfg.DEFAULT_LOGIN
-            interface = cfg.IF
-        elif len(args.hotspot) > 1:
+        else:
             hotspot = args.hotspot[0]
+        if len(args.hotspot) > 1:
             flag = args.hotspot[1]
             if flag != "-i" and flag != "--interface" or len(args.hotspot) != 3 and not cfg.SILENT:
                 parser.print_help()
                 exit(1)
             if len(args.hotspot) == 3:
                 interface = args.hotspot[2]
-            else:
-                interface = cfg.IF
-        
-        exit(utils.connect(cfg.LOGIN_INFO[hotspot], interface))
+
+        try:
+            success = utils.connect(cfg.LOGIN_INFO[hotspot], interface)
+        except KeyError:
+            print("Unknown hotspot: " + hotspot)
+            exit(1)
+        except: exit(2)
+
+        if success and not cfg.SILENT:
+            print("Logged in.")
+            exit(0)
+        else: exit(3)
 
     if not cfg.SILENT: parser.print_help()
     exit(1)

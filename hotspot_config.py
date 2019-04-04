@@ -17,7 +17,7 @@
 
 from collections import OrderedDict
 
-DEBUG = True
+DEBUG = False
 SILENT = False
 
 MAX_ATTEMPTS = 3
@@ -52,4 +52,11 @@ LOGIN_INFO['library'] = {
         "library_card": "12345678",
         "library_pin": "1234",
         "login": "submit" }
+}
+LOGIN_INFO['test'] = {
+    "ssid": "NoSuchSSID",
+    "login_url": "http://thissitedoesnotexistforcertain.com/login.html",
+    "info": {
+        "field1": "nonsense",
+        "field2": "morenonsense" }
 }
