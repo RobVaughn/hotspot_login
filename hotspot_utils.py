@@ -1,5 +1,3 @@
-# TODO: 1st connect attempt always "fails" but doesn't. Trying delay. Needs more testing.
-
 import subprocess
 import time
 import traceback
@@ -77,9 +75,10 @@ def showNetwork(interface:str=cfg.IF) -> int:
     cmd = "netsh wlan show network interface=" + interface
     retcode, results = execNetsh(cmd, strip=False)
     if "no such wireless interface" in results:
-        debugOut(results.replace("\n", ""))
+        if not cfg.SILENT: print(results.replace("\n", ""))
         return(1)
-    elif retcode != 0: debugOut("Unable to show available networks.")
+    elif retcode != 0 and not cfg.SILENT:
+        print("Unable to show available networks.")
 
     if not cfg.SILENT: print(results)
     return(retcode)

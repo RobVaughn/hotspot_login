@@ -16,7 +16,7 @@ ADAPTER_TESTS = False
 
 # Test assertions are taken from the config file but can be hand-coded.
 TESTIF = cfg.IF
-BADIF = "Invalid-IF"
+BADIF = "InvalidIF"
 TEST_SSID = cfg.LOGIN_INFO[cfg.DEFAULT_LOGIN]['ssid']
 BAD_SSID = "InvalidSSID"
 
@@ -25,8 +25,12 @@ try:
 except AttributeError:
     ADMIN = ctypes.windll.shell32.IsUserAnAdmin() != 0
 
+#
+# Helper functions for testing standard output/error messages.
+#
+
 @contextmanager
-def captured_output():
+def getOutput():
     """ Capture stdout and stderr messages for assertion tests. """
 
     stdout, stderr = io.StringIO(), io.StringIO()
@@ -41,22 +45,13 @@ def captured_output():
 def captureOutput(func, *args) -> (int, list, list):
     """ Capture stdout/stderr from a function call and return with exit code. """
 
-    stdout = ""
-    stderr = ""
-    with captured_output() as (out, err):
+    with getOutput() as (out, err):
         retcode = func()
     out = out.getvalue().splitlines()
-    if len(out) > 0:
-        stdout = out[0]
     err = err.getvalue().splitlines()
-    if len(err) > 0:
-        stderr = err[0]
-    return(retcode, stdout, stderr)
+    return(retcode, '\n'.join(out), '\n'.join(err))
 
 class utilsTest(unittest.TestCase):
-
-    def expecting(output:str) -> None:
-        print("\nExpecting:", format(output))
 
     def test_check(self):
         """ checkIF() - checks if interface is enabled. """
@@ -75,15 +70,14 @@ class utilsTest(unittest.TestCase):
             hu.disableIF(cfg.IF)
             self.assertEqual(hu.enableIF(cfg.IF), 0)
             # Already enabled, still returns 0.
-            print("\nIF:", TESTIF)
             self.assertEqual(hu.enableIF(TESTIF), 0)
             self.assertEqual(hu.enableIF(BADIF), 1)
             # Always finish with interface enabled.
             hu.enableIF()
         elif not ADMIN:
-            print("Tests for enableIF() require Administrator privs.")
+            print("\nTests for enableIF() require Administrator privs.")
         else:
-            print("Enable/disable tests can lock up some adapters. Set ADAPTER_TEST to True to run them.")
+            print("\nEnable/disable tests can lock up some adapters. Set ADAPTER_TEST to True to run them.")
 
     def test_disable(self):
         """ disableIF() - disables a network interface. """
@@ -99,9 +93,9 @@ class utilsTest(unittest.TestCase):
             # Always finish with interface enabled.
             hu.enableIF()
         elif not ADMIN:
-            print("Tests for disableIF() require Administrator privs.")
+            print("\nTests for disableIF() require Administrator privs.")
         else:
-            print("Enable/disable tests can lock up some adapters. Set ADAPTER_TEST to True to run them.")
+            print("\nEnable/disable tests can lock up some adapters. Set ADAPTER_TEST to True to run them.")
 
     def test_show(self):
         """ showNetwork() - displays available hotspots. """
@@ -111,7 +105,10 @@ class utilsTest(unittest.TestCase):
         self.assertEqual(hu.showNetwork(TESTIF), 0)
         retcode, out, err = captureOutput(lambda:hu.showNetwork(BAD_SSID))
         self.assertEqual(retcode, 1)
-        self.assertIn('no such wireless interface', out[0])
+        if 'no such wireless' in out:
+            self.assertIn('no such wireless interface', out)
+        else:
+            self.assertIn('Unable to show available', out)
 
     def test_check_connect(self):
         """ checkConnection() - checks if connected to a hotspot. """
@@ -129,21 +126,10 @@ class utilsTest(unittest.TestCase):
 
         retcode, out, err = captureOutput(lambda:hu.connectToNetwork(TESTIF, BAD_SSID))
         self.assertFalse(retcode)
-        self.assertIn('There is no profile "' + BAD_SSID + '"', out)
-
-        retcode, out, err = captureOutput(lambda:hu.connectToNetwork(BADIF, BAD_SSID))
-        self.assertFalse(retcode)
-        with self.subTest():
-            self.assertIn('Failed to connect to ' + BAD_SSID, out)
-#            self.assertIn('Logged in', out)
-        with self.subTest():
-            self.assertIn('There is no profile "' + BAD_SSID + '"', out)
-#            self.assertIn('Already connected', out)
-
-#        if 'Failed' in out:
-#            self.assertIn('Failed to connect to ' + BAD_SSID, out)
-#        else:
-#            self.assertIn('There is no profile "' + BAD_SSID + '"', out)
+        if 'Not connected to ' in out:
+            self.assertIn('Not connected to ' + BAD_SSID, out)
+        else:
+            self.assertIn('There is no profile \"' + BAD_SSID, out)
 
     def test_connect(self):
         """ connect() - enables interface if necessary, connects and logs in via POST. """

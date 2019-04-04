@@ -1,5 +1,5 @@
-# Script to connect automatically to a wifi hotspot. Could be expanded to save a list of
-# hotspots, user/password combos for lookup to auto login when in range.
+# Script to connect automatically to a wifi hotspot. Could be expanded to auto login when
+# in range.
 
 import argparse
 
@@ -7,7 +7,6 @@ import hotspot_config as cfg
 import hotspot_utils as utils
 
 def main():
-
     parser = argparse.ArgumentParser(description='Hotspot Login Utility')
     parser.add_argument('hotspot',
                         nargs=argparse.REMAINDER,

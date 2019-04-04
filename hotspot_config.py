@@ -5,9 +5,7 @@
 # MAX_ATTEMPTS: maximum number of attempts to connect to a hotspot.
 # IF: interface to use by default in case of multiple.
 #
-# HOTSPOT_SSID: name of the hotspot used to connect if necessary.
-# HOTSPOT_URL: URL for the hotspot login page.
-# HOTSPOT_DEFAULT: default dictionary entry for hotspot if not specified on command line.
+# DEFAULT_LOGIN: default LOGIN_INFO entry.
 # LOGIN_INFO: indexed by a shorthand name, each entry must contain:
 #   1. The SSID of the hotspot as 'ssid'.
 #   2. The URL of the login page to authentic w/the hotspot.
@@ -19,10 +17,8 @@ from collections import OrderedDict
 
 DEBUG = False
 SILENT = False
-
 MAX_ATTEMPTS = 3
 IF = 'Wi-Fi'
-ADMIN_ACCT = 'Administrator'
 DEFAULT_LOGIN='svi'
 
 LOGIN_INFO = OrderedDict()
