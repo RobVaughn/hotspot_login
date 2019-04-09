@@ -25,6 +25,13 @@ optional arguments:
     --connected [interface] check if connected to a hotspot
 ```
 
+Error Codes:
+
+0 - success
+1 - general error
+2 - usage error
+3 - execute error, traceback results printed
+
 Notes:
 
 1. Warning: the unit tests for enableIF() and disableIF(), which change the state of the network interface, can cause some laptop adapters to lock up, such as the Qualcomm Atheros series, if cycled too quickly when testing. The 'runas' command to use Administrator account doesn't work for either accounts w/Admin privs or the Administrator account (if you have it enabled.) As such the tests:
