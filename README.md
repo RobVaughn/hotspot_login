@@ -25,12 +25,12 @@ optional arguments:
     --connected [interface] check if connected to a hotspot
 ```
 
-Error Codes:
-
-0 - success
-1 - general error
-2 - usage error
-3 - execute error, traceback results printed
+Error Code | Cause
+---------- | -------------
+0 | success
+1 | general error
+2 | usage error
+3 | execute error, traceback results printed
 
 Notes:
 
