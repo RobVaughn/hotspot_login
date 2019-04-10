@@ -26,7 +26,7 @@ optional arguments:
 ```
 
 Error Code | Cause
-- | -------------
+--- | -------------
 0 | success
 1 | general error
 2 | usage error
