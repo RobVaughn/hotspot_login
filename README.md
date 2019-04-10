@@ -31,6 +31,7 @@ Error Code | Cause
 1 | general error
 2 | usage error
 3 | execute error, traceback results printed
+4 | invalid network interace (adapter)
 
 Notes:
 
