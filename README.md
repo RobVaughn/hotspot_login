@@ -3,27 +3,41 @@
 A network utility script to manage network interfaces and log into wi-fi hotspot if not connected, without opening your browser.
 ```
 # python .\hotspot_login.py -h
-usage: hotspot_login.py [-h] [-q] [-s [interface]] [-c [interface]] [-e [interface]] [-d [interface]] [-n [interface]] [hotspot]
+usage: hotspot_login.py [-h] [-q] [-f] [-v] [-t] [-s [SSID]] [-c [interface]]
+                        [-e [interface]] [-d [interface]] [-r [interface]]
+                        [-n [SSID]] [-b [SSID]] [-u [SSID]] [-bl]
+                        ...
 
 Hotspot Login Utility
 
 positional arguments:
-  ssid                      SSID of hotspot to connect to
+  [hotspot [interface]]
+                        label for hotspot to connect to
 
 optional arguments:
-  -h, --help                show this help message and exit
-  -q, --silent
-  -s [interface],
-    --show [interface]      show available wifi networks
-  -c [interface],
-    --check [interface]     check if an interface is connected to a network
-  -e [interface],
-    --enable [interface]    enable a network interface
-  -d [interface],
-    --disable [interface]   disable a network interface
-  -n [interface],
-    --connected [interface] check if connected to a hotspot
-```
+  -h, --help            show this help message and exit
+  -q, --silent          supress all output
+  -f, --force           force addition to block list
+  -v, --debug           turn on debugging messages
+  -t, --test            test if a hotspot is logged into
+  -s [SSID], --show [SSID]
+                        show available wifi networks
+  -c [interface], --check [interface]
+                        check if an interface is connected to a network
+  -e [interface], --enable [interface]
+                        enable a network interface
+  -d [interface], --disable [interface]
+                        disable a network interface
+  -r [interface], --reset [interface]
+                        reset a network interface
+  -n [SSID], --connected [SSID]
+                        check if connected to a hotspot
+  -b [SSID], --block [SSID]
+                        block a wifi network by SSID
+  -u [SSID], --unblock [SSID]
+                        unblock a wifi network by SSID
+  -bl, --blocklist      show list of blocked SSIDs
+  ```
 
 Error Code | Cause
 --- | -------------
@@ -32,6 +46,7 @@ Error Code | Cause
 2 | usage error
 3 | execute error, traceback results printed
 4 | invalid network interace (adapter)
+5 | hotspot login failed
 
 Notes:
 
