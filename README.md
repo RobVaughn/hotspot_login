@@ -50,7 +50,7 @@ Error Code | Cause
 
 Notes:
 
-1. Warning: the unit tests for enableIF(), disableIF() and resetIF(), which change the state of the network interface, can cause some laptop adapters to lock up, such as the Qualcomm Atheros series, if cycled too quickly when testing.
+1. Warning: the unit tests for enableIF(), disableIF() and resetIF(), which change the state of the network interface, can cause some laptop adapters to lock up, such as the Qualcomm Atheros series, if cycled too quickly when testing. They're turned off by default and can be run by setting ADAPTER_TESTS to True.
 2. The 'runas' command to use Administrator account doesn't work for either accounts w/Admin privs or the Administrator account (if you have it enabled.) As such the tests:
    1. Require Administrator privs to run (PowerShell -> Run as Administrator) or use of the Microsoft Elevated PowerToy.
    1. Are disabled by default unless a flag is set to run them.
