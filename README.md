@@ -2,7 +2,7 @@
 A network utility script to manage network interfaces and log into wi-fi hotspot if not connected, without opening your browser. You can enable, disable, reset and test network adapters, check if connected or logged in, show available hotspots and add/remove SSIDs to/from a blocklist. Blocked SSIDs aren't displayed when all are listed (helpful in areas with a lot of access points.)
 ```
 # python .\hotspot_login.py -h
-usage: hotspot_login.py [-h] [-q] [-f] [-v] [-t] [-s [SSID]] [-c [interface]]
+usage: hotspot_login.py [-h] [-q] [-f] [-v] [-t [hotspot]] [-s [SSID]] [-c [interface]]
                         [-e [interface]] [-d [interface]] [-r [interface]]
                         [-n [SSID]] [-b [SSID]] [-u [SSID]] [-bl]
                         ...
@@ -18,7 +18,8 @@ optional arguments:
   -q, --silent          supress all output
   -f, --force           force addition to block list
   -v, --debug           turn on debugging messages
-  -t, --test            test if a hotspot is logged into
+  -t [hotspot], --test [hotspot]
+                        test if a hotspot is logged into
   -s [SSID], --show [SSID]
                         show available wifi networks
   -c [interface], --check [interface]
