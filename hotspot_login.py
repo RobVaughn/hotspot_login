@@ -2,103 +2,208 @@
 # in range.
 
 import argparse
+import os, ctypes
 
 import hotspot_config as cfg
 import hotspot_utils as utils
+
+ADMIN = False
 
 def main():
     parser = argparse.ArgumentParser(description='Hotspot Login Utility')
     parser.add_argument('hotspot',
                         nargs=argparse.REMAINDER,
-                        default=None,
-                        metavar='ssid',
-                        help='SSID of hotspot to connect to')
+                        metavar='[hotspot [interface]]',
+                        help='label for hotspot to connect to')
+#    sp = parser.add_subparsers()
+#    if_parser = sp.add_parser('interface', help='interface')
+#    if_parser.add_argument("--interface", "-i",
+#                           nargs='?',
+#                           const=cfg.IF,
+#                           action='store',
+#                           dest='if',
+#                           type=str,
+#                           help='login option')
+
+    # True/false flags.
     parser.add_argument('-q', '--silent',
                         action='store_true',
-                        default=False)
+                        default=False,
+                        help='supress all output')
+    parser.add_argument('-f', '--force',
+                        action='store_true',
+                        default=False,
+                        help='force addition to block list')
+    parser.add_argument('-v', '--debug',
+                        action='store_true',
+                        default=False,
+                        help='turn on debugging messages')
+
+    # Operation flags.
+    parser.add_argument('-t', '--test',
+                        nargs='?',
+                        const=cfg.DEFAULT_LOGIN,
+                        action='store',
+                        metavar='hotspot',
+                        dest='test',
+                        type=str,
+                        help='test if a hotspot is logged into')
     parser.add_argument('-s', '--show',
-                        nargs=argparse.REMAINDER,
-                        default=None,
+                        nargs='?',
+                        const=cfg.IF,
+                        action='store',
                         metavar='interface',
+                        dest='show',
+                        type=str,
                         help='show available wifi networks')
     parser.add_argument('-c', '--check',
-                        nargs=argparse.REMAINDER,
-                        default=None,
+                        nargs='?',
+                        const=cfg.IF,
+                        action='store',
+                        dest='check',
                         metavar='interface',
+                        type=str,
                         help='check if an interface is connected to a network')
     parser.add_argument('-e', '--enable',
-                        nargs=argparse.REMAINDER,
-                        default=None,
+                        nargs='?',
+                        const=cfg.IF,
+                        action='store',
+                        dest='enable',
+                        metavar='interface',
+                        type=str,
                         help='enable a network interface')
     parser.add_argument('-d', '--disable',
-                        nargs=argparse.REMAINDER,
-                        default=None,
+                        nargs='?',
+                        const=cfg.IF,
+                        action='store',
+                        dest='disable',
+                        metavar='interface',
+                        type=str,
                         help='disable a network interface')
+    parser.add_argument('-r', '--reset',
+                        nargs='?',
+                        const=cfg.IF,
+                        action='store',
+                        dest='reset',
+                        metavar='interface',
+                        type=str,
+                        help='reset a network interface')
     parser.add_argument('-n', '--connected',
-                        nargs=argparse.REMAINDER,
-                        default=None,
+                        nargs='?',
+                        const=cfg.LOGIN_INFO[cfg.DEFAULT_LOGIN]['ssid'],
+                        action='store',
+                        dest='connected',
                         metavar='SSID',
+                        type=str,
                         help='check if connected to a hotspot')
+    parser.add_argument('-b', '--block',
+                        nargs="?",
+                        action='store',
+                        dest='block',
+                        metavar='SSID',
+                        help='block a wifi network by SSID')
+    parser.add_argument('-u', '--unblock',
+                        nargs="?",
+                        action='store',
+                        dest='unblock',
+                        metavar='SSID',
+                        help='unblock a wifi network by SSID')
+    parser.add_argument('-bl', '--blocklist',
+                        action='store_true',
+                        help='show list of blocked SSIDs')
     args = parser.parse_args()
-    if cfg.DEBUG and not cfg.SILENT: print(args)
 
-    if (args.silent):
-        cfg.SILENT = True
+    if (args.silent): cfg.SILENT = True
+    if (args.debug): cfg.DEBUG = True
+    if not cfg.SILENT and cfg.DEBUG: print(args)
 
-    if args.show is not None:
-        if len(args.show) == 0: interface = cfg.IF
-        else: interface = args.show[0]
-        exit(utils.showNetwork(interface))
-
-    elif args.check is not None:
-        if len(args.check) == 0: interface = cfg.IF
-        else: interface = args.check[0]
-
-        if utils.checkIF(interface):
-            if not cfg.SILENT: print("Interface " + interface + " is connected.")
-            exit(0)
-        else: exit(1)
-
-    elif args.enable is not None:
-        if len(args.enable) == 0: interface = cfg.IF
-        else: interface = args.enable[0]
-        retcode = utils.enableIF(interface)
-        if retcode == 0 and not cfg.SILENT: print("Interface " + interface + " is enabled.")
+    # $0 -t [hotspot]
+    if args.test is not None:
+        if not utils.hotspotLogin(cfg.LOGIN_INFO[args.test]):
+            exit(5)
+        exit(0)
+        
+    # $0 -s [interface]
+    if args.show:
+        retcode, results = utils.getNetworks(args.show)
+        if not cfg.SILENT: print(results)
         exit(retcode)
 
-    elif args.disable is not None:
-        if len(args.disable) == 0: interface = cfg.IF
-        else: interface = args.disable[0]
-        return(utils.disableIF(interface))
-
-    elif args.connected is not None:
-        if len(args.connected) == 0:
-            ssid = cfg.LOGIN_INFO[cfg.DEFAULT_LOGIN]['ssid']
-        else:
-            ssid = args.connected[0]
-        if utils.checkConnection(ssid):
-            if not cfg.SILENT: print("Connected to " + ssid + ".")
-            exit(0)
-        else:
-            if not cfg.SILENT: print("Not connected to " + ssid + ".")
+    # $0 -c [interface]
+    elif args.check:
+        if utils.checkIF(args.check):
+            if not cfg.SILENT:
+                print("Interface " + args.check + " is connected.")
+                exit(0)
+        if not cfg.SILENT: print("Interface " + args.check + " is not connected.")
         exit(1)
 
-    # Default usage: $0 [hotspot]
-    else:
-        interface = cfg.IF
-        if len(args.hotspot) == 0:
-            hotspot = cfg.DEFAULT_LOGIN
+    # $0 -e [interface]
+    elif args.enable:
+        retcode = utils.enableIF(args.enable)
+        if retcode == 0 and not cfg.SILENT: print("Interface " + args.enable + " is enabled.")
+        elif not cfg.SILENT: print("Interface " + args.enable + " cannot be enabled.")
+        exit(retcode)
+
+    # $0 -d [interface]
+    elif args.disable:
+        retcode = utils.disableIF(args.disable)
+        if retcode == 0 and not cfg.SILENT: print("Interface " + args.enable + " is disabled.")
+        elif not cfg.SILENT: print("Interface " + args.enable + " cannot be disabled.")
+        exit(retcode)
+
+    # $0 -r [interface]
+    elif args.reset:
+        retcode = utils.resetIF(args.reset)
+        if retcode == 0 and not cfg.SILENT: print("Interface " + args.enable + " has been reset.")
+        elif not cfg.SILENT: print("Interface " + args.enable + " can't be reset.")
+        exit(retcode)
+
+    # $0 -n [interface]
+    elif args.connected:
+        if utils.checkConnection(args.connected):
+            if not cfg.SILENT: print("Connected to " + args.connected + ".")
+            exit(0)
         else:
+            if not cfg.SILENT: print("Not connected to " + args.connected + ".")
+        exit(1)
+
+    # TODO check these:
+    # $0 [-f] -b [SSID]
+    elif args.block is not None:
+        if len(args.block) < 1 or len(args.block) > 1:
+            cfg.exitMsg("Argparse shouldn't let this happen, one arg only.", 2)
+        if utils.addBlocklist(args.block[0], args.force):
+            cfg.exitMsg("Added " + args.block[0] + " to block list.", 0)
+        else:
+            cfg.exitMsg("Unable to find " + args.block[0] + " in the network list.", 1)
+
+    # $0 [-f] -u [interface]
+    elif args.unblock is not None:
+        if len(args.unblock) < 1 or len(args.unblock) > 1:
+            cfg.exitMsg("Argparse shouldn't let this happen, one arg only.", 2)
+        if utils.delBlocklist(args.unblock[0]):
+            cfg.exitMsg("Removed " + args.unblock[0] + " from block list.", 0)
+        else:
+            cfg.exitMsg("Unable to find " + args.unblock[0] + " in the block list.", 1)
+
+    # $0 -bl
+    elif args.blocklist:
+        retcode, results = utils.getBlocklist()
+        if not cfg.SILENT: print(results)
+        exit(retcode)
+
+    # Default usage: $0 [hotspot] [-i [interface]]
+    else:
+        hotspot = cfg.DEFAULT_LOGIN
+        interface = cfg.IF
+        if len(args.hotspot) > 0:
             hotspot = args.hotspot[0]
         if len(args.hotspot) > 1:
-            flag = args.hotspot[1]
-            if flag != "-i" and flag != "--interface" or len(args.hotspot) != 3 and not cfg.SILENT:
-                parser.print_help()
-                exit(1)
-            if len(args.hotspot) == 3:
-                interface = args.hotspot[2]
+            interface = args.hotspot[1]
 
         try:
+            print('utils.connect()', cfg.LOGIN_INFO[hotspot], interface)
             success = utils.connect(cfg.LOGIN_INFO[hotspot], interface)
         except KeyError:
             print("Unknown hotspot: " + hotspot)
@@ -108,10 +213,29 @@ def main():
         if success and not cfg.SILENT:
             print("Logged in.")
             exit(0)
-        else: exit(3)
+        else: exit(5)
 
     if not cfg.SILENT: parser.print_help()
     exit(1)
 
 if __name__ == '__main__':
+    if cfg.OS not in cfg.OSES:
+        if not cfg.SILENT:
+            print("Unsupported operating system: " + cfg.OS)
+            exit(2)
+    if cfg.EXEC not in cfg.EXECS:
+        if not cfg.SILENT:
+            print("Unsupported execution method: " + cfg.EXEC)
+            exit(2)
+    try:
+        cfg.ADMIN = os.getuid() == 0
+    except AttributeError:
+        cfg.ADMIN = ctypes.windll.shell32.IsUserAnAdmin() != 0
+    if cfg.ADMIN and cfg.OS is "Windows":
+        cfg.ADMIN_ACCT = "Administrator"
+    elif cfg.ADMIN and cfg.OS is "Linux":
+        cfg.ADMIN_ACCT = "root"
+    
+    if cfg.DEBUG and not cfg.SILENT: print("OS:", cfg.OS, "Exec:", cfg.EXEC, "Admin: ", cfg.ADMIN)
+
     main()
