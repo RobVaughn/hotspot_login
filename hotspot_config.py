@@ -2,8 +2,7 @@
 #
 # DEBUG: Debug flag, set to True prints information.
 # SILENT: Silent operation, True surpresses all output.
-# IF: interface to use by default in case of multiple. Defaults are 'Wi-Fi' on Windows and
-#     'wlan0' on Linux.
+# TESTING: If set to True, uses a default network interface for Vbox testing.
 #
 # MAX_ATTEMPTS: maximum number of attempts to connect to a hotspot.
 # NAPTIME: wait time before retrying to connect in seconds.
@@ -16,12 +15,13 @@
 #      first entry is the default when not specified on the command line. The submit button
 #      might be superfluous but doesn't hurt to have.
 
-import platform
+import platform, subprocess, re
 from collections import OrderedDict
 
 DEBUG = False
 SILENT = False
-IF = 'Wi-Fi'
+TESTING = True
+
 MAX_ATTEMPTS = 3
 NAPTIME = 5
 
@@ -62,14 +62,6 @@ LOGIN_INFO['test'] = {
         "field2": "morenonsense" }
 }
 
-EXECS = ["Netsh", "PowerShell"]
-OSES = ["Windows", "Linux"]
-EXEC = "Netsh"
-#EXEC = "PowerShell"
-OS = platform.system()
-ADMIN = False
-ADMIN_ACCT = None
-
 # Helper functions.
 
 def debugOut(retcode:int=0, out:str=None, err:str=None) -> None:
@@ -87,3 +79,26 @@ def exitMsg(msg:str, retcode:int=1) -> None:
     if not SILENT:
         print(msg)
         exit(retcode)
+
+# Interface and operating system settings.
+
+ADMIN = False
+ADMIN_ACCT = None
+OS = platform.system()
+PLATFORM = platform.platform()
+
+# TODO: these are overly simplistic approaches, could be much more thorough. For later.
+if OS == "Windows":
+    IF = 'Wi-Fi'
+elif OS == "Linux":
+    results = subprocess.check_output(['iw', 'dev'], shell=True)
+    ifs = results.decode('ascii')
+    regex = re.compile(r'wlan[0-9]\s')
+    matches = regex.findall(ifs)
+    if matches is None or TESTING:
+        IF = "wlan0"
+    else:
+        IF = matches[0]
+else:
+    exitMsg("Unsupported operating system: "+ OS +", exiting.", 2)
+debugOut("OS: "+ OS +" IF: " + IF) 

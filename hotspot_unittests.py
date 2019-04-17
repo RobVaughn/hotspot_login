@@ -79,7 +79,11 @@ class UtilsTests(unittest.TestCase):
         result = subprocess.run(['python', 'hotspot_login.py', cfg.DEFAULT_LOGIN, BADIF],
                                 capture_output=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn('Unknown interface', str(result.stdout).replace('\r',''))
+        if cfg.OS == "Windows":
+            expected = "name is not registered"
+        elif cfg.OS == "Linux":
+            expected = "Unknown interface"
+        self.assertIn(expected, str(result.stdout).replace('\r',''))
         result = subprocess.run(['python', 'hotspot_login.py', 'InvalidLogin', BADIF],
                                 capture_output=True)
         self.assertNotEqual(result.returncode, 0)
@@ -253,6 +257,7 @@ class UtilsTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('no such wireless interface', str(result.stdout).replace('\r',''))
 
+    @unittest.skipUnless(cfg.OS == "Windows", "Windows functionality only.")
     def test_blocklist(self):
         """ getBlocklist() - retrieves a list of blocked SSIDs. """
 
@@ -268,6 +273,7 @@ class UtilsTests(unittest.TestCase):
         self.assertEqual(retcode, 0)
         self.assertNotIn('SSID: "' + BAD_SSID + '"', out)
 
+    @unittest.skipUnless(cfg.OS == "Windows", "Windows functionality only.")
     def test_blocklist_CLI(self):
         """ Testing messages and results from "blocklist" (-bl) command line option. """
 
@@ -275,6 +281,7 @@ class UtilsTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertIn('Block list on the system', str(result.stdout).replace('\r',''))
 
+    @unittest.skipUnless(cfg.OS == "Windows", "Windows functionality only.")
     @unittest.skipUnless(ADMIN is True, "Requires admin privleges.")
     def test_addblock(self):
         """ addBlocklist() - adds an SSID to the block list. """
@@ -289,6 +296,7 @@ class UtilsTests(unittest.TestCase):
         self.assertEqual(retcode, 0)
         self.assertNotIn(BAD_SSID, out)
         
+    @unittest.skipUnless(cfg.OS == "Windows", "Windows functionality only.")
     @unittest.skipUnless(ADMIN is True, "Requires admin privleges.")
     def test_unblock(self):
         """ delBlocklist() - removes an SSID from the block list. """

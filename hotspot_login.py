@@ -7,23 +7,12 @@ import os, ctypes
 import hotspot_config as cfg
 import hotspot_utils as utils
 
-ADMIN = False
-
 def main():
     parser = argparse.ArgumentParser(description='Hotspot Login Utility')
     parser.add_argument('hotspot',
                         nargs=argparse.REMAINDER,
                         metavar='[hotspot [interface]]',
                         help='label for hotspot to connect to')
-#    sp = parser.add_subparsers()
-#    if_parser = sp.add_parser('interface', help='interface')
-#    if_parser.add_argument("--interface", "-i",
-#                           nargs='?',
-#                           const=cfg.IF,
-#                           action='store',
-#                           dest='if',
-#                           type=str,
-#                           help='login option')
 
     # True/false flags.
     parser.add_argument('-q', '--silent',
@@ -96,21 +85,29 @@ def main():
                         metavar='SSID',
                         type=str,
                         help='check if connected to a hotspot')
+    parser.add_argument('-x', '--disconnect',
+                        nargs='?',
+                        const=cfg.IF,
+                        action='store',
+                        dest='disconnect',
+                        metavar='interface',
+                        type=str,
+                        help='disconnect from a hotspot')
     parser.add_argument('-b', '--block',
                         nargs="?",
                         action='store',
                         dest='block',
                         metavar='SSID',
-                        help='block a wifi network by SSID')
+                        help='block a wifi network by SSID [Windows only]')
     parser.add_argument('-u', '--unblock',
                         nargs="?",
                         action='store',
                         dest='unblock',
                         metavar='SSID',
-                        help='unblock a wifi network by SSID')
+                        help='unblock a wifi network by SSID [Windows only]')
     parser.add_argument('-bl', '--blocklist',
                         action='store_true',
-                        help='show list of blocked SSIDs')
+                        help='show list of blocked SSIDs [Windows only]')
     args = parser.parse_args()
 
     if (args.silent): cfg.SILENT = True
@@ -131,6 +128,7 @@ def main():
 
     # $0 -c [interface]
     elif args.check:
+        cfg.debugOut("args.check", args.check)
         if utils.checkIF(args.check):
             if not cfg.SILENT:
                 print("Interface " + args.check + " is connected.")
@@ -148,15 +146,15 @@ def main():
     # $0 -d [interface]
     elif args.disable:
         retcode = utils.disableIF(args.disable)
-        if retcode == 0 and not cfg.SILENT: print("Interface " + args.enable + " is disabled.")
-        elif not cfg.SILENT: print("Interface " + args.enable + " cannot be disabled.")
+        if retcode == 0 and not cfg.SILENT: print("Interface " + args.disable + " is disabled.")
+        elif not cfg.SILENT: print("Interface " + args.disable + " cannot be disabled.")
         exit(retcode)
 
     # $0 -r [interface]
     elif args.reset:
         retcode = utils.resetIF(args.reset)
-        if retcode == 0 and not cfg.SILENT: print("Interface " + args.enable + " has been reset.")
-        elif not cfg.SILENT: print("Interface " + args.enable + " can't be reset.")
+        if retcode == 0 and not cfg.SILENT: print("Interface " + args.reset + " has been reset.")
+        elif not cfg.SILENT: print("Interface " + args.reset + " can't be reset.")
         exit(retcode)
 
     # $0 -n [interface]
@@ -166,6 +164,15 @@ def main():
             exit(0)
         else:
             if not cfg.SILENT: print("Not connected to " + args.connected + ".")
+        exit(1)
+
+    # $0 -x [interface]
+    elif args.disconnect:
+        if utils.disconnectFrom(args.disconnect):
+            if not cfg.SILENT: print("Disconnected " + args.disconnect + ".")
+            exit(0)
+        else:
+            if not cfg.SILENT: print("Cannot disconnect " + args.disconnect + ".")
         exit(1)
 
     # TODO check these:
@@ -203,7 +210,6 @@ def main():
             interface = args.hotspot[1]
 
         try:
-            print('utils.connect()', cfg.LOGIN_INFO[hotspot], interface)
             success = utils.connect(cfg.LOGIN_INFO[hotspot], interface)
         except KeyError:
             print("Unknown hotspot: " + hotspot)
@@ -219,14 +225,6 @@ def main():
     exit(1)
 
 if __name__ == '__main__':
-    if cfg.OS not in cfg.OSES:
-        if not cfg.SILENT:
-            print("Unsupported operating system: " + cfg.OS)
-            exit(2)
-    if cfg.EXEC not in cfg.EXECS:
-        if not cfg.SILENT:
-            print("Unsupported execution method: " + cfg.EXEC)
-            exit(2)
     try:
         cfg.ADMIN = os.getuid() == 0
     except AttributeError:
@@ -236,6 +234,6 @@ if __name__ == '__main__':
     elif cfg.ADMIN and cfg.OS is "Linux":
         cfg.ADMIN_ACCT = "root"
     
-    if cfg.DEBUG and not cfg.SILENT: print("OS:", cfg.OS, "Exec:", cfg.EXEC, "Admin: ", cfg.ADMIN)
+    if cfg.DEBUG and not cfg.SILENT: print("OS:", cfg.OS, "Admin: ", cfg.ADMIN)
 
     main()

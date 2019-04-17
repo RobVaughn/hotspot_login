@@ -1,4 +1,3 @@
-# TODO print("Figure out admin priv stuff")
 # TODO Check all funcs return() correct args / error codes
 # 0	success
 # 1	general error
@@ -6,6 +5,7 @@
 # 3	execute error, traceback results printed
 # 4	invalid network interace (adapter)
 # 5     login failed
+# 8     Windows only operation
 
 import subprocess
 import time
@@ -44,37 +44,30 @@ def runCmd(cmd) -> (int, str, str):
         cfg.exitMsg("Failed to execute: " + cmd + "\n" + traceback.format_exc(), 3)
     return(proc.returncode, stdout, stderr)
 
-def execShell(cmd:str, admin:bool=False, strip:bool=True) -> (int, str):
+def execShell(cmd:str, admin:bool=False, strip:bool=True) -> (int, str, str):
     """ Linux command line execution. Exits on error. """
 
     if admin:
-        cmd = "/bin/sudo " + cmd
+        cmd = "/usr/bin/sudo " + cmd
     cfg.debugOut(out="Executing: " + cmd)
     retcode, stdout, stderr = runCmd(cmd)
     cfg.debugOut(retcode, stdout, stderr)
+    if strip:
+        stdout = stdout.replace("\n", "")
+        stderr = stderr.replace("\n", "")
+    return(retcode, stdout, stderr)
 
-    if ("requested operation requires elevation" in stdout):
-        adminMsg(stdout)
-
-    if strip: stdout = stdout.replace("\n", "")
-    return(proc.returncode, stdout.replace("\r", ""))
-
-def execWin(shellcmd:str, cmd:str, admin:bool=False, strip:bool=True) -> (int, str):
+def execWin(cmd:str, admin:bool=False, strip:bool=True) -> (int, str):
     """ Executes a shell command, captures and returns output. Exits on error. """
 
-    if shellcmd is "Netsh":
-        cmd = "netsh " + cmd
-    else:
-        cmd = "powershell.exe " + cmd
-
     if admin and not cfg.ADMIN: adminMsg("")
-    cfg.debugOut(out="Executing: " + cmd)
-    retcode, stdout, stderr = runCmd(cmd)
+    cfg.debugOut(out="Executing: netsh " + cmd)
+    retcode, stdout, stderr = runCmd("netsh " + cmd)
     cfg.debugOut(retcode, stdout, stderr)
 
     if ('requested operation requires elevation' in stdout): adminMsg(stdout)
     if strip: stdout = stdout.replace("\n", "")
-    return(retcode, stdout.replace("\r", ""))
+    return(retcode, stdout.replace("\r", ""), stderr.replace("\r", ""))
 
 def hotspotLogin(login_info) -> bool:
     """ Post to login page, check results. """
@@ -93,211 +86,190 @@ def checkIF(interface:str=cfg.IF) -> bool:
     """ Check if a network interface is enabled. """
 
     retcode = 0
-    if cfg.OS is "Windows":
-        if cfg.EXEC is "Netsh":
-            cmd = "interface show interface name=\"" + interface + "\""
-            retcode, results = execWin(cfg.EXEC, cmd)
-            if re.search(r'state:\sEnabled', results) is not None: return(True)
-        elif cfg.EXEC is "PowerShell":
-            cmd = "Get-NetAdapter -Name " + interface + " | Format-List -Property Status"
-            retcode, results = execWin(cfg.EXEC, cmd)
-            # TODO: finish PS
-            return('Status : Up' in results)
-    elif cfg.OS is "Linux":
-        retcode, results = execShell("iw " + cfg.IF + " scan", admin=True)
-        if ('is up' in results) or retcode == 0: return(True)
+    if cfg.OS == "Windows":
+        retcode, out, err = execWin("interface show interface name=\"" + interface + "\"")
+        if re.search(r'state:\sEnabled', out) is not None and retcode == 0: return(True)
+    elif cfg.OS == "Linux":
+        retcode, out, err = execShell("/sbin/ip link show " + interface + " up")
+        if retcode != 0: cfg.exitMsg(err, retcode)
+        if re.search(r'state UP', out) is not None and retcode == 0: return(True)
     else: cfg.exitMsg(cfg.OS + " platform not supported.", 3)
+    if retcode != 0: cfg.exitMsg(out + err, retcode)
     return(False)
 
 def enableIF(interface:str=cfg.IF) -> int:
     """ Enable a network interface, returns 0 on success or already enabled. """
 
+    if checkIF(interface): return(0)
     retcode = 0
-    if not checkIF(interface):
-        if cfg.OS is "Windows":
-            if cfg.EXEC is "Netsh":
-                cmd = "interface set interface " + interface + " admin=enabled"
-            elif cfg.EXEC is "PowerShell":
-                cmd = "Enable-NetAdapter -Name \"" + interface + "\" -Confirm:$false"
-            retcode, results = execWin(cfg.EXEC, cmd, admin=True)
-        elif cfg.OS is "Linux":
-            retcode, results = execShell("ifconfig " + interface + " up", admin=True)
-        else: cfg.exitMsg(cfg.OS + " platform not supported.", 3)
+    if cfg.OS == "Windows":
+        cmd = "interface set interface " + interface + " admin=enabled"
+        retcode, out, err = execWin(cmd, admin=True)
+    elif cfg.OS == "Linux":
+        retcode, out, err = execShell("/sbin/ifconfig " + interface + " up", admin=True)
+    else: cfg.exitMsg(cfg.OS + " platform not supported.", 3)
+
+    cfg.debugOut(out=out, err=err)
     return(retcode)
 
 def disableIF(interface:str=cfg.IF) -> int:
     """ Disable a network interface, returns 0 on success or already disabled. """
 
+    if not checkIF(interface): return(0)
     retcode = 0
-    if checkIF(interface):
-        if cfg.OS is "Windows":
-            if cfg.EXEC is "Netsh":
-                cmd = "interface set interface " + interface + " admin=disabled"
-            elif cfg.EXEC is "PowerShell":
-                cmd = "Disable-NetAdapter -Name \"" + interface + "\" -Confirm:$false"
-            retcode, results = execWin(cfg.EXEC, cmd, admin=True)
-        elif cfg.OS is "Linux":
-            retcode, results = execShell("ifconfig " + interface + " down", admin=True)
-        else: cfg.exitMsg(cfg.OS + " platform not supported.", 3)
+    if cfg.OS == "Windows":
+        cmd = "interface set interface " + interface + " admin=disabled"
+        retcode, out, err = execWin(cmd, admin=True)
+    elif cfg.OS == "Linux":
+        retcode, out, err = execShell("/sbin/ifconfig " + interface + " down", admin=True)
+    else: cfg.exitMsg(cfg.OS + " platform not supported.", 3)
+
+    cfg.debugOut(out=out, err=err)
     return(retcode)
 
 def resetIF(interface:str=cfg.IF) -> int:
     """ Resets a network interface. """
 
+    if not checkIF(interface): return(1)
     retcode = 0
-    if cfg.OS is "Windows":
-        if cfg.EXEC is "Netsh":
-            cmd = "winsock reset"
-        elif cfg.EXEC is "PowerShell":
-            cmd = "Restart-NetAdapter -Name \"" + interface + "\" -Confirm:$false"
-        retcode, results = execWin(cfg.EXEC, cmd, admin=True)
-    elif cfg.OS is "Linux":
-        retcode, results = execShell("ifconfig " + interface + " reset", admin=True)
+    if cfg.OS == "Windows":
+        retcode, out, err = execWin("winsock reset", admin=True)
+    elif cfg.OS == "Linux":
+        retcode, out, err = execShell("systemctl restart networking", admin=True)
     else: cfg.exitMsg(cfg.OS + " platform not supported.", 3)
 
-    cfg.debugOut(out=results)
+    cfg.debugOut(out=out, err=err)
     return(retcode)
     
 def getNetworks(interface:str=cfg.IF) -> (int, str):
     """ Return a list of all available Wifi networks for a network interface. """
 
     retcode = 0
-    # No native PowerShell method to show networks, so use 'netsh' on Windows.
-    if cfg.OS is "Windows":
+    if cfg.OS == "Windows":
         cmd = "wlan show network interface=" + interface
-        retcode, results = execWin("Netsh", cmd, strip=False)
-        if "no such wireless interface" in results:
-            # TODO
-            #cfg.infoMsg(results.replace("\n", ""))
-            return(4, results)
-    elif cfg.OS is "Linux":
-        retcode, results = execShell(cmd, strip=False)
-        print("TODO: Linux show network.")
+        retcode, out, err = execWin(cmd, strip=False)
+        if "no such wireless interface" in out: return(4, out)
+    elif cfg.OS == "Linux":
+        # Alt: iw dev [interface] station dump
+        retcode, out, err = execShell("/sbin/iwlist " + interface + " scan")
+        if retcode == 255:
+            return(4, err)
     else: cfg.exitMsg(cfg.OS + " platform not supported.", 3)
 
     if retcode != 0:
         return(1, "Unable to retrieve list of available networks.")
-    return(retcode, results)
+    cfg.debugOut(out=out, err=err)
+    return(retcode, out)
 
 def getBlocklist() -> (int, str):
     """ Get a list of all blocked SSIDs (filtered from network list.) """
 
-    retcode = 0
-    # TODO? No native PowerShell method to show networks, so use 'netsh' on Windows.
-    if cfg.OS is "Windows":
-        cmd = "wlan show filters permission=block"
-        retcode, results = execWin("Netsh", cmd, strip=False)
-    elif cfg.OS is "Linux":
-        retcode, results = execShell(cmd, strip=False)
-        print("TODO: Linux show blocklist.")
-    else: cfg.exitMsg(cfg.OS + " platform not supported.", 3)
+    if cfg.OS != "Windows":
+        cfg.exitMsg("SSID blocking only available on Windows.", 8)
 
+    retcode = 0
+    retcode, out, err = execWin("wlan show filters permission=block", strip=False)
     if retcode != 0:
-        return(1, "Unable to retrieve list of blocked networks.")
-    return(retcode, results)
+        return(1, err) # TODO? "Unable to retrieve list of blocked networks.")
+    return(retcode, out)
 
 def addBlocklist(ssid:str, force=False) -> bool:
     """ Adds an SSID to the block list so it's not displayed. """
 
+    if cfg.OS != "Windows":
+        cfg.exitMsg("Blocking only available on Windows.", 8)
+
     retcode = 0
-    retcode, results = getNetworks()
+    retcode, out = getNetworks()
     if retcode != 0:
         cfg.exitMsg("Unable to retrieve a list of networks.", 1)
-    if re.search(r'SSID\s+[0-9+]\s:\s' + ssid + '\n', results) is None and not force:
+    if re.search(r'SSID\s+[0-9+]\s:\s' + ssid + '\n', out) is None and not force:
         return(False)
 
     retcode = 0
-    # TODO? No native PowerShell method to show networks, so use 'netsh' on Windows.
-    if cfg.OS is "Windows":
-        cmd = "wlan add filter permission=block ssid=\"" + ssid + "\" networktype=infrastructure"
-        retcode, results = execWin("Netsh", cmd, admin=True)
-    elif cfg.OS is "Linux":
-        retcode, results = execShell(cmd)
-        print("TODO: Linux add blocklist.")
-    else: cfg.exitMsg(cfg.OS + " platform not supported.", 3)
-
+    cmd = "wlan add filter permission=block ssid=\"" + ssid + "\" networktype=infrastructure"
+    retcode, out, err = execWin(cmd, admin=True)
     if retcode != 0:
-        cfg.exitMsg("Unable to add " + ssid + " to block list.", 1)
+        cfg.exitMsg(err) # TODO?"Unable to add " + ssid + " to block list.", 1)
 
-    cfg.debugOut(out=results)
+    cfg.debugOut(out=out, err=err)
     return(True)
 
 def delBlocklist(ssid:str) -> bool:
     """ Removes an SSID from the block list. """
 
-    retcode, results = getBlocklist()
+    if cfg.OS != "Windows":
+        cfg.exitMsg("Blocking only available on Windows.", 8)
+
+    retcode = 0
+    retcode, out = getBlocklist()
     if retcode != 0:
         cfg.exitMsg("Unable to retrieve the block list.", 1)
-    if re.search(r'SSID:\s+\"'+ ssid, results) is None:
+    if re.search(r'SSID:\s+\"'+ ssid, out) is None:
         return(False)
 
     retcode = 0
-    # TODO? No native PowerShell method to show networks, so use 'netsh' on Windows.
-    if cfg.OS is "Windows":
-        cmd = "wlan delete filter permission=block ssid=\"" + ssid + "\" networktype=infrastructure"
-        retcode, results = execWin("Netsh", cmd, admin=True)
-    elif cfg.OS is "Linux":
-        retcode, results = execShell(cmd)
-        print("TODO: Linux add blocklist.")
-    else: cfg.exitMsg(cfg.OS + " platform not supported.", 3)
-
+    cmd = "wlan delete filter permission=block ssid=\"" + ssid + "\" networktype=infrastructure"
+    retcode, out, err = execWin(cmd, admin=True)
     if retcode != 0:
-        cfg.exitMsg("Unable to remove " + ssid + " from block list.", 1)
+        cfg.exitMsg(err) # TODO? "Unable to remove " + ssid + " from block list.", 1)
 
-    cfg.debugOut(out=results)
+    cfg.debugOut(out=out, err=err)
     return(True)
 
 def checkConnection(ssid:str) -> bool:
     """ Returns True if connected to the Wifi hotspot. """
 
-    if cfg.OS is "Windows":
-        if cfg.EXEC is "Netsh":
-            cmd = "wlan show interface"
-        elif cfg.EXEC is "PowerShell":
-            cmd = "TODO"
-        retcode, results = execWin(cfg.EXEC, cmd, strip=False)
-        if retcode != 0: cfg.debugOut(retcode, out=results)
-        if re.search(r'SSID\s+:\s+' + ssid + '\n', results) is not None:
+    if cfg.OS == "Windows":
+        retcode, out, err = execWin("wlan show interface", strip=False)
+        if retcode != 0: cfg.debugOut(retcode, out=out, err=err)
+        if re.search(r'SSID\s+:\s+' + ssid + '\n', out) is not None and retcode == 0:
             return(True)
-    elif cfg.OS is "Linux":
-        retcode, results = execShell("iw " + cfg.IF + " link")
-        if re.search(r'^Connected', results) is None:
+    elif cfg.OS == "Linux":
+        retcode, out, err = execShell("/sbin/iw dev " + cfg.IF + " link")
+        if re.search(r'^Connected', out) is not None and retcode == 0:
             return(True)
     else: cfg.exitMsg(cfg.OS + " platform not supported.", 3)
     return(False)
 
-def connectToNetwork(interface:str, ssid:str) -> bool:
+def connectToNetwork(ssid:str, interface:str=cfg.IF) -> bool:
     """ Connect inteface to a Wifi hotspot by name/SSID, returns True on success. """
 
+    retcode = 0
     attempts = 1
     options = "interface=\"" + interface + "\" " + ssid
     while attempts <= cfg.MAX_ATTEMPTS:
-        if cfg.OS is "Windows":
-            retcode, results = execWin(cfg.EXEC, "wlan connect " + options)
-        elif cfg.OS is "Linux":
-            retcode, results = execShell("TODO" + options)
+        if cfg.OS == "Windows":
+            retcode, out, err = execWin("wlan connect " + options)
+            if "completed successfully" in out and retcode == 0: return(True)
+        elif cfg.OS == "Linux":
+            retcode, out, err = execShell("/sbin/iw " + interface + "connect -w " + ssid, admin=True)
+            if retcode == 0: return(True)
         else: cfg.exitMsg(cfg.OS + " platform not supported.", 3)
             
-        cfg.debugOut(retcode, out=results)
+        cfg.debugOut(retcode, out=out, err=err)
         time.sleep(cfg.NAPTIME)
-
-        if cfg.OS is "Windows" and cfg.EXEC is "Netsh":
-            if "completed successfully" in results: return(True)
-            elif "There is no profile" in results:
-                cfg.infoMsg(results)
-                return(False)
-        elif cfg.OS is "Windows" and cfg.EXEC is "PowerShell":
-            print("TODO: PS connect to network.")
-        elif cfg.OS is "Linux":
-            print("TODO: Linux connect to network.")
-        else: cfg.exitMsg(cfg.OS + " platform not supported.", 3)
-
         attempts += 1
 
     cfg.infoMsg("Failed to connect to " + ssid + " after three attempts.")
     return(False)
 
-def connect(login_info:str, interface:str) -> bool:
+def disconnectFrom(interface:str=cfg.IF) -> bool:
+    """ Disconnect a network interface from an access point. """
+
+    if cfg.OS == "Windows":
+        retcode, out, err = execWin("wlan disconnect interface=\"" + interface +"\"")
+        if retcode != 0: cfg.debugOut(retcode, out=out, err=err)
+        if re.search(r'request was completed successfully', out) is not None and retcode == 0:
+            return(True)
+    elif cfg.OS == "Linux":
+        retcode, out, err = execShell("/sbin/iw dev " + cfg.IF + " disconnect", admin=True)
+        if re.search(r'^Disconnected', out) is not None and retcode == 0:
+            return(True)
+    else: cfg.exitMsg(cfg.OS + " platform not supported.", 3)
+    return(False)
+    
+def connect(login_info:str, interface:str=cfg.IF) -> bool:
     """ Default behavior, enable interface (if needed), connect to network, pull data. """
 
     try:
@@ -315,7 +287,7 @@ def connect(login_info:str, interface:str) -> bool:
     cfg.debugOut(out="2. Checking if connected to a hotspot.")
     if not checkConnection(ssid):
         cfg.debugOut(out="Not connected, connecting to " + ssid + "...")
-        success = connectToNetwork(interface, ssid)
+        success = connectToNetwork(ssid, interface)
         if success: cfg.infoMsg("Connected successfully.")
         else: return(False)
 
