@@ -53,10 +53,13 @@ def captureOutput(func, *args) -> (int, list, list):
 class UtilsTests(unittest.TestCase):
 
     @unittest.skipUnless(ADMIN is False, "Non-Admin privs tests.")
-    def test_admin_CLI(self):
-        """ Testing error message on non-admin execution. """
+    def test_admin_fail_CLI(self):
+        """ Testing error messages on non-admin execution. """
 
         result = subprocess.run(['python', 'hotspot_login.py', '-d'], capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Admin privileges are required', str(result.stdout).replace('\r',''))
+        result = subprocess.run(['python', 'hotspot_login.py', '-r'], capture_output=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('Admin privileges are required', str(result.stdout).replace('\r',''))
 
@@ -95,7 +98,7 @@ class UtilsTests(unittest.TestCase):
         self.assertTrue(hu.checkIF())
         self.assertTrue(hu.checkIF(cfg.IF))
         self.assertTrue(hu.checkIF(TESTIF))
-        self.assertFalse(hu.checkIF(BADIF))
+        self.assertFalse(hu.checkIF(BADIF), 0)
 
     def test_check_CLI(self):
         """ Testing messages and results from "check" (-c) command line option. """
@@ -117,6 +120,10 @@ class UtilsTests(unittest.TestCase):
     def test_non_admin_CLI(self):
         """ Testing messages and results from -e/-d/-r command line options w/o admin privs. """
 
+        if cfg.OS == "Windows":
+            expected = "name is not registered"
+        elif cfg.OS == "Linux":
+            expected = "Unknown interface"
         result = subprocess.run(['python', 'hotspot_login.py', '-e'], capture_output=True)
         self.assertEqual(result.returncode, 0)
         self.assertIn('Interface ' + cfg.IF + ' is enabled', str(result.stdout))
@@ -140,8 +147,8 @@ class UtilsTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('Admin privileges are required', str(result.stdout))
         result = subprocess.run(['python', 'hotspot_login.py', '-d', BADIF], capture_output=True)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn('Admin privileges are required', str(result.stdout))
+        self.assertEqual(result.returncode, 0)
+        self.assertIn(expected, str(result.stdout))
 
         result = subprocess.run(['python', 'hotspot_login.py', '-r'], capture_output=True)
         self.assertNotEqual(result.returncode, 0)
@@ -154,7 +161,7 @@ class UtilsTests(unittest.TestCase):
         self.assertIn('Admin privileges are required', str(result.stdout))
         result = subprocess.run(['python', 'hotspot_login.py', '-r', BADIF], capture_output=True)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn('Admin privileges are required', str(result.stdout))
+        self.assertIn(expected, str(result.stdout))
 
     @unittest.skipUnless(ADMIN is True, "Requires admin privleges.")
     @unittest.skipUnless(ADAPTER_TESTS is True, "Adapter tests flag is not set.")
@@ -261,17 +268,20 @@ class UtilsTests(unittest.TestCase):
     def test_blocklist(self):
         """ getBlocklist() - retrieves a list of blocked SSIDs. """
 
-        retcode, out, err = captureOutput(lambda:hu.getBlocklist())
+        retcode, out, err = hu.getBlocklist()
         self.assertEqual(retcode, 0)
         self.assertIn('Block list on the system', out)
-        hu.addBlocklist(BAD_SSID, force=True)
-        retcode, out, err = captureOutput(lambda:hu.getBlocklist())
-        self.assertEqual(retcode, 0)
-        self.assertIn('SSID: "' + BAD_SSID + '"', out)
-        hu.delBlocklist(BAD_SSID)
-        retcode, out, err = captureOutput(lambda:hu.getBlocklist())
-        self.assertEqual(retcode, 0)
-        self.assertNotIn('SSID: "' + BAD_SSID + '"', out)
+        if cfg.ADMIN:
+            result = hu.addBlocklist(BAD_SSID, force=True)
+            self.assertTrue(result)
+            retcode, out, err = hu.getBlocklist()
+            self.assertEqual(retcode, 0)
+            self.assertIn('SSID: "' + BAD_SSID + '"', out)
+            result = hu.delBlocklist(BAD_SSID)
+            self.assertTrue(result)
+            retcode, out, err = hu.getBlocklist()
+            self.assertEqual(retcode, 0)
+            self.assertNotIn('SSID: "' + BAD_SSID + '"', out)
 
     @unittest.skipUnless(cfg.OS == "Windows", "Windows functionality only.")
     def test_blocklist_CLI(self):
@@ -313,6 +323,19 @@ class UtilsTests(unittest.TestCase):
         self.assertTrue(hu.checkConnection(TEST_SSID))
         self.assertFalse(hu.checkConnection(BAD_SSID))
 
+    def test_check_connect_CLI(self):
+        """ Testing messages and results from "check connection" (-n) command line option. """
+
+        result = subprocess.run(['python', 'hotspot_login.py', '-n'], capture_output=True)
+        self.assertEqual(result.returncode, 0)
+        self.assertIn('Connected', str(result.stdout).replace('\r',''))
+        result = subprocess.run(['python', 'hotspot_login.py', '-n', TEST_SSID], capture_output=True)
+        self.assertEqual(result.returncode, 0)
+        self.assertIn('Connected', str(result.stdout).replace('\r',''))
+        result = subprocess.run(['python', 'hotspot_login.py', '-n', BAD_SSID], capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Not connected', str(result.stdout).replace('\r',''))
+
     def test_connect_to(self):
         """ connectToNetwork() - connects to a hotspot by SSID. """
 
@@ -327,7 +350,67 @@ class UtilsTests(unittest.TestCase):
         else:
             self.assertIn('There is no profile \"' + BAD_SSID, out)
 
-    def test_connect(self):
+    def test_connect_to_CLI(self):
+        """ Testing messages and results from "connect" (-n) command line option. """
+
+        result = subprocess.run(['python', 'hotspot_login.py', '-n'], capture_output=True)
+        self.assertEqual(result.returncode, 0)
+        self.assertIn('Connected', str(result.stdout).replace('\r',''))
+        result = subprocess.run(['python', 'hotspot_login.py', '-n', TEST_SSID], capture_output=True)
+        self.assertEqual(result.returncode, 0)
+        self.assertIn('Connected', str(result.stdout).replace('\r',''))
+        result = subprocess.run(['python', 'hotspot_login.py', '-n', BAD_SSID], capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Not connected', str(result.stdout).replace('\r',''))
+
+    def test_disconnect(self):
+        """ disconnectFrom() - disconnects from a hotspot. """
+
+        # Start connected.
+        if not hu.checkConnection(cfg.LOGIN_INFO[cfg.DEFAULT_LOGIN]['ssid']):
+            hu.connectTo()
+        retcode, out, err = captureOutput(lambda:hu.disconnectFrom())
+        self.assertTrue(retcode)
+        self.assertIn('Disconnected', out)
+        hu.connectTo(cfg.IF)
+        retcode, out, err = captureOutput(lambda:hu.disconnectFrom(cfg.IF))
+        self.assertTrue(retcode)
+        self.assertIn('Disconnected', out)
+        hu.connectTo(TESTIF)
+        retcode, out, err = captureOutput(lambda:hu.disconnectFrom(TESTIF))
+        self.assertTrue(retcode)
+        self.assertIn('Disconnected', out)
+        self.assertFalse(hu.connectToNetwork(BADIF))
+        retcode, out, err = captureOutput(lambda:hu.disconnectFrom(BADIF))
+        self.assertFalse(retcode)
+        self.assertIn('Disconnected', out)
+        # End connected.
+        hu.connectTo()
+
+    def test_disconnect_CLI(self):
+        """ Testing messages and results from "disconnect" (-x) command line option. """
+
+        # Start connected.
+        if not hu.checkConnection(cfg.LOGIN_INFO[cfg.DEFAULT_LOGIN]['ssid']):
+            hu.connectTo()
+        result = subprocess.run(['python', 'hotspot_login.py', '-x'], capture_output=True)
+        self.assertEqual(result.returncode, 0)
+        self.assertIn('Disconnected', str(result.stdout).replace('\r',''))
+        hu.connectToNetwork(cfg.IF)
+        result = subprocess.run(['python', 'hotspot_login.py', '-x', cfg.IF], capture_output=True)
+        self.assertEqual(result.returncode, 0)
+        self.assertIn('Disconnected', str(result.stdout).replace('\r',''))
+        hu.connectToNetwork(TESTIF)
+        result = subprocess.run(['python', 'hotspot_login.py', '-x', TESTIF], capture_output=True)
+        self.assertEqual(result.returncode, 0)
+        self.assertIn('Disconnected', str(result.stdout).replace('\r',''))
+        result = subprocess.run(['python', 'hotspot_login.py', '-x', BADIF], capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Cannot disconnect', str(result.stdout).replace('\r',''))
+        # End connected.
+        hu.connectToNetwork()
+
+    def test_login(self):
         """ connect() - enables interface if necessary, connects and logs in via POST. """
 
         retcode, out, err = captureOutput(

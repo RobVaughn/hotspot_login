@@ -1,11 +1,4 @@
 # TODO Check all funcs return() correct args / error codes
-# 0	success
-# 1	general error
-# 2	usage error
-# 3	execute error, traceback results printed
-# 4	invalid network interace (adapter)
-# 5     login failed
-# 8     Windows only operation
 
 import subprocess
 import time
@@ -15,12 +8,12 @@ import requests as req
 
 import hotspot_config as cfg
 
-def adminMsg(out):
+def adminMsg(out=""):
     """ Error message when admin privs are required. """
 
     cfg.exitMsg(out + "Admin privileges are required. Either:\n" +
                 "1. Run command line window as Administrator -or-\n" +
-                "2. Install the Microsoft Elevate PowerToy")
+                "2. Install the Microsoft Elevate PowerToy", cfg.ERRORS['ADMINREQ'])
 
 def runCmd(cmd) -> (int, str, str):
     """ Executes a shell level command. """
@@ -41,7 +34,7 @@ def runCmd(cmd) -> (int, str, str):
         cfg.debugOut(err.returncode, err.output, err.error)
         return(err.returncode, err.output, err.error)
     except Exception:
-        cfg.exitMsg("Failed to execute: " + cmd + "\n" + traceback.format_exc(), 3)
+        cfg.exitMsg("Failed to execute: " + cmd + "\n" + traceback.format_exc(), cfg.ERRORS['WINONLY'])
     return(proc.returncode, stdout, stderr)
 
 def execShell(cmd:str, admin:bool=False, strip:bool=True) -> (int, str, str):
@@ -60,7 +53,7 @@ def execShell(cmd:str, admin:bool=False, strip:bool=True) -> (int, str, str):
 def execWin(cmd:str, admin:bool=False, strip:bool=True) -> (int, str):
     """ Executes a shell command, captures and returns output. Exits on error. """
 
-    if admin and not cfg.ADMIN: adminMsg("")
+    if admin and not cfg.ADMIN: adminMsg()
     cfg.debugOut(out="Executing: netsh " + cmd)
     retcode, stdout, stderr = runCmd("netsh " + cmd)
     cfg.debugOut(retcode, stdout, stderr)
@@ -72,7 +65,11 @@ def execWin(cmd:str, admin:bool=False, strip:bool=True) -> (int, str):
 def hotspotLogin(login_info) -> bool:
     """ Post to login page, check results. """
 
-    response = req.post(login_info['login_url'], data=login_info['info'])
+    try:
+        response = req.post(login_info['login_url'], data=login_info['info'])
+    except:
+        return(False)
+
     if response.status_code == 200:
         html = response.content
         cfg.debugOut(out=str(html[0:1000]))
@@ -91,10 +88,9 @@ def checkIF(interface:str=cfg.IF) -> bool:
         if re.search(r'state:\sEnabled', out) is not None and retcode == 0: return(True)
     elif cfg.OS == "Linux":
         retcode, out, err = execShell("/sbin/ip link show " + interface + " up")
-        if retcode != 0: cfg.exitMsg(err, retcode)
         if re.search(r'state UP', out) is not None and retcode == 0: return(True)
-    else: cfg.exitMsg(cfg.OS + " platform not supported.", 3)
-    if retcode != 0: cfg.exitMsg(out + err, retcode)
+    else: cfg.exitMsg(cfg.OS + " platform not supported.", cfg.ERRORS['BADPLAT'])
+    if retcode != 0: cfg.infoMsg(out + err)
     return(False)
 
 def enableIF(interface:str=cfg.IF) -> int:
@@ -107,7 +103,7 @@ def enableIF(interface:str=cfg.IF) -> int:
         retcode, out, err = execWin(cmd, admin=True)
     elif cfg.OS == "Linux":
         retcode, out, err = execShell("/sbin/ifconfig " + interface + " up", admin=True)
-    else: cfg.exitMsg(cfg.OS + " platform not supported.", 3)
+    else: cfg.exitMsg(cfg.OS + " platform not supported.", cfg.ERRORS['BADPLAT'])
 
     cfg.debugOut(out=out, err=err)
     return(retcode)
@@ -122,7 +118,7 @@ def disableIF(interface:str=cfg.IF) -> int:
         retcode, out, err = execWin(cmd, admin=True)
     elif cfg.OS == "Linux":
         retcode, out, err = execShell("/sbin/ifconfig " + interface + " down", admin=True)
-    else: cfg.exitMsg(cfg.OS + " platform not supported.", 3)
+    else: cfg.exitMsg(cfg.OS + " platform not supported.", cfg.ERRORS['BADPLAT'])
 
     cfg.debugOut(out=out, err=err)
     return(retcode)
@@ -136,7 +132,7 @@ def resetIF(interface:str=cfg.IF) -> int:
         retcode, out, err = execWin("winsock reset", admin=True)
     elif cfg.OS == "Linux":
         retcode, out, err = execShell("systemctl restart networking", admin=True)
-    else: cfg.exitMsg(cfg.OS + " platform not supported.", 3)
+    else: cfg.exitMsg(cfg.OS + " platform not supported.", cfg.ERRORS['BADPLAT'])
 
     cfg.debugOut(out=out, err=err)
     return(retcode)
@@ -148,41 +144,41 @@ def getNetworks(interface:str=cfg.IF) -> (int, str):
     if cfg.OS == "Windows":
         cmd = "wlan show network interface=" + interface
         retcode, out, err = execWin(cmd, strip=False)
-        if "no such wireless interface" in out: return(4, out)
+        if "no such wireless interface" in out: return(cfg.ERRORS['BADIF'], out)
     elif cfg.OS == "Linux":
         # Alt: iw dev [interface] station dump
         retcode, out, err = execShell("/sbin/iwlist " + interface + " scan")
         if retcode == 255:
-            return(4, err)
-    else: cfg.exitMsg(cfg.OS + " platform not supported.", 3)
+            return(cfg.ERRORS['BADIF'], err)
+    else: cfg.exitMsg(cfg.OS + " platform not supported.", cfg.ERRORS['BADPLAT'])
 
     if retcode != 0:
         return(1, "Unable to retrieve list of available networks.")
     cfg.debugOut(out=out, err=err)
     return(retcode, out)
 
-def getBlocklist() -> (int, str):
+def getBlocklist() -> (int, str, str):
     """ Get a list of all blocked SSIDs (filtered from network list.) """
 
     if cfg.OS != "Windows":
-        cfg.exitMsg("SSID blocking only available on Windows.", 8)
+        cfg.exitMsg("SSID blocking only available on Windows.", cfg.ERRORS['WINONLY'])
 
     retcode = 0
     retcode, out, err = execWin("wlan show filters permission=block", strip=False)
     if retcode != 0:
-        return(1, err) # TODO? "Unable to retrieve list of blocked networks.")
-    return(retcode, out)
+        return(cfg.ERRORS['GENERAL'], out + err) # TODO? "Unable to retrieve list of blocked networks.")
+    return(retcode, out, err)
 
 def addBlocklist(ssid:str, force=False) -> bool:
     """ Adds an SSID to the block list so it's not displayed. """
 
     if cfg.OS != "Windows":
-        cfg.exitMsg("Blocking only available on Windows.", 8)
+        cfg.exitMsg("SSID blocking only available on Windows.", cfg.ERRORS['WINONLY'])
 
     retcode = 0
     retcode, out = getNetworks()
     if retcode != 0:
-        cfg.exitMsg("Unable to retrieve a list of networks.", 1)
+        cfg.exitMsg("Unable to retrieve a list of networks.")
     if re.search(r'SSID\s+[0-9+]\s:\s' + ssid + '\n', out) is None and not force:
         return(False)
 
@@ -199,12 +195,12 @@ def delBlocklist(ssid:str) -> bool:
     """ Removes an SSID from the block list. """
 
     if cfg.OS != "Windows":
-        cfg.exitMsg("Blocking only available on Windows.", 8)
+        cfg.exitMsg("SSID blocking only available on Windows.", cfg.ERRORS['WINONLY'])
 
     retcode = 0
     retcode, out = getBlocklist()
     if retcode != 0:
-        cfg.exitMsg("Unable to retrieve the block list.", 1)
+        cfg.exitMsg("Unable to retrieve the block list.")
     if re.search(r'SSID:\s+\"'+ ssid, out) is None:
         return(False)
 
@@ -222,7 +218,6 @@ def checkConnection(ssid:str) -> bool:
 
     if cfg.OS == "Windows":
         retcode, out, err = execWin("wlan show interface", strip=False)
-        if retcode != 0: cfg.debugOut(retcode, out=out, err=err)
         if re.search(r'SSID\s+:\s+' + ssid + '\n', out) is not None and retcode == 0:
             return(True)
     elif cfg.OS == "Linux":
@@ -230,6 +225,7 @@ def checkConnection(ssid:str) -> bool:
         if re.search(r'^Connected', out) is not None and retcode == 0:
             return(True)
     else: cfg.exitMsg(cfg.OS + " platform not supported.", 3)
+    if retcode != 0: cfg.infoMsg(out + err)
     return(False)
 
 def connectToNetwork(ssid:str, interface:str=cfg.IF) -> bool:

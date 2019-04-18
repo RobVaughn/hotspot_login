@@ -62,6 +62,20 @@ LOGIN_INFO['test'] = {
         "field2": "morenonsense" }
 }
 
+# Standard error exit codes.
+
+ERRORS = {
+    'SUCCESS': 0,
+    'GENERAL': 1,
+    'USAGE': 2,
+    'EXECUTE': 3,
+    'BADIF': 4,
+    'LOGINFAIL': 5,
+    'BADPLAT': 6,
+    'ADMINREQ': 7,
+    'WINONLY': 8
+}
+
 # Helper functions.
 
 def debugOut(retcode:int=0, out:str=None, err:str=None) -> None:
@@ -73,7 +87,7 @@ def debugOut(retcode:int=0, out:str=None, err:str=None) -> None:
 def infoMsg(msg:str) -> None:
     if not SILENT: print(msg)
 
-def exitMsg(msg:str, retcode:int=1) -> None:
+def exitMsg(msg:str="Unknown error.", retcode:int=1) -> None:
     """ Prints a message if not running silent, exits w/error code."""
 
     if not SILENT:

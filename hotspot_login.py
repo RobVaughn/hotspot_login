@@ -29,14 +29,6 @@ def main():
                         help='turn on debugging messages')
 
     # Operation flags.
-    parser.add_argument('-t', '--test',
-                        nargs='?',
-                        const=cfg.DEFAULT_LOGIN,
-                        action='store',
-                        metavar='hotspot',
-                        dest='test',
-                        type=str,
-                        help='test if a hotspot is logged into')
     parser.add_argument('-s', '--show',
                         nargs='?',
                         const=cfg.IF,
@@ -45,6 +37,14 @@ def main():
                         dest='show',
                         type=str,
                         help='show available wifi networks')
+    parser.add_argument('-t', '--test',
+                        nargs='?',
+                        const=cfg.DEFAULT_LOGIN,
+                        action='store',
+                        metavar='hotspot',
+                        dest='test',
+                        type=str,
+                        help='test if a hotspot is logged into')
     parser.add_argument('-c', '--check',
                         nargs='?',
                         const=cfg.IF,
@@ -112,117 +112,101 @@ def main():
 
     if (args.silent): cfg.SILENT = True
     if (args.debug): cfg.DEBUG = True
-    if not cfg.SILENT and cfg.DEBUG: print(args)
+    cfg.debugOut(args)
 
-    # $0 -t [hotspot]
-    if args.test is not None:
-        if not utils.hotspotLogin(cfg.LOGIN_INFO[args.test]):
-            exit(5)
-        exit(0)
-        
     # $0 -s [interface]
     if args.show:
         retcode, results = utils.getNetworks(args.show)
-        if not cfg.SILENT: print(results)
-        exit(retcode)
+        cfg.exitMsg(results, retcode)
 
+    # $0 -t [hotspot]
+    elif args.test is not None:
+        try:
+            login_info = cfg.LOGIN_INFO[args.test]
+        except KeyError:
+            cfg.exitMsg("Unknown hotspot " + args.test, cfg.ERRORS['USAGE'])
+        except:
+            cfg.exitMsg("Invalid usage.", cfg.ERRORS['USAGE'])
+
+        if not utils.hotspotLogin(login_info):
+            cfg.exitMsg("Not logged into " + login_info['ssid'], cfg.ERRORS['LOGINFAIL'])
+        cfg.exitMsg("Logged into " + login_info['ssid'], cfg.ERRORS['SUCCESS'])
+        
     # $0 -c [interface]
     elif args.check:
-        cfg.debugOut("args.check", args.check)
         if utils.checkIF(args.check):
-            if not cfg.SILENT:
-                print("Interface " + args.check + " is connected.")
-                exit(0)
-        if not cfg.SILENT: print("Interface " + args.check + " is not connected.")
-        exit(1)
+            cfg.exitMsg("Interface " + args.check + " is connected.", cfg.ERRORS['SUCCESS'])
+        cfg.exitMsg("Interface " + args.check + " is not connected.", cfg.ERRORS['GENERAL'])
 
     # $0 -e [interface]
     elif args.enable:
         retcode = utils.enableIF(args.enable)
-        if retcode == 0 and not cfg.SILENT: print("Interface " + args.enable + " is enabled.")
-        elif not cfg.SILENT: print("Interface " + args.enable + " cannot be enabled.")
-        exit(retcode)
+        if retcode == 0:
+            cfg.exitMsg("Interface " + args.enable + " is enabled.", retcode)
+        cfg.exitMsg("Interface " + args.enable + " cannot be enabled.", retcode)
 
     # $0 -d [interface]
     elif args.disable:
         retcode = utils.disableIF(args.disable)
-        if retcode == 0 and not cfg.SILENT: print("Interface " + args.disable + " is disabled.")
-        elif not cfg.SILENT: print("Interface " + args.disable + " cannot be disabled.")
-        exit(retcode)
+        if retcode == 0:
+            cfg.exitMsg("Interface " + args.disable + " is disabled.", retcode)
+        cfg.exitMsg("Interface " + args.disable + " cannot be disabled.", retcode)
 
     # $0 -r [interface]
     elif args.reset:
         retcode = utils.resetIF(args.reset)
-        if retcode == 0 and not cfg.SILENT: print("Interface " + args.reset + " has been reset.")
-        elif not cfg.SILENT: print("Interface " + args.reset + " can't be reset.")
-        exit(retcode)
+        if retcode == 0:
+            cfg.exitMsg("Interface " + args.reset + " has been reset.", retcode)
+        cfg.exitMsg("Interface " + args.reset + " can't be reset.", retcode)
 
     # $0 -n [interface]
     elif args.connected:
         if utils.checkConnection(args.connected):
-            if not cfg.SILENT: print("Connected to " + args.connected + ".")
-            exit(0)
-        else:
-            if not cfg.SILENT: print("Not connected to " + args.connected + ".")
-        exit(1)
+            cfg.exitMsg("Connected to " + args.connected + ".", cfg.ERRORS['SUCCESS'])
+        cfg.exitMsg("Not connected to " + args.connected + ".", cfg.ERRORS['GENERAL'])
 
     # $0 -x [interface]
     elif args.disconnect:
         if utils.disconnectFrom(args.disconnect):
-            if not cfg.SILENT: print("Disconnected " + args.disconnect + ".")
-            exit(0)
-        else:
-            if not cfg.SILENT: print("Cannot disconnect " + args.disconnect + ".")
-        exit(1)
+            cfg.exitMsg("Disconnected " + args.disconnect + ".", cfg.ERRORS['SUCCESS'])
+        cfg.exitMsg("Cannot disconnect " + args.disconnect + ".", cfg.ERRORS['GENERAL'])
 
-    # TODO check these:
     # $0 [-f] -b [SSID]
     elif args.block is not None:
-        if len(args.block) < 1 or len(args.block) > 1:
-            cfg.exitMsg("Argparse shouldn't let this happen, one arg only.", 2)
-        if utils.addBlocklist(args.block[0], args.force):
-            cfg.exitMsg("Added " + args.block[0] + " to block list.", 0)
-        else:
-            cfg.exitMsg("Unable to find " + args.block[0] + " in the network list.", 1)
+        if utils.addBlocklist(args.block, args.force):
+            cfg.exitMsg("Added " + args.block + " to block list.", cfg.ERRORS['SUCCESS'])
+        cfg.exitMsg("Unable to find " + args.block + " in the network list.", cfg.ERRORS['GENERAL'])
 
     # $0 [-f] -u [interface]
     elif args.unblock is not None:
-        if len(args.unblock) < 1 or len(args.unblock) > 1:
-            cfg.exitMsg("Argparse shouldn't let this happen, one arg only.", 2)
-        if utils.delBlocklist(args.unblock[0]):
-            cfg.exitMsg("Removed " + args.unblock[0] + " from block list.", 0)
-        else:
-            cfg.exitMsg("Unable to find " + args.unblock[0] + " in the block list.", 1)
+        if utils.delBlocklist(args.unblock):
+            cfg.exitMsg("Removed " + args.unblock + " from block list.", cfg.ERRORS['SUCCESS'])
+        cfg.exitMsg("Unable to find " + args.unblock + " in the block list.", cfg.ERRORS['GENERAL'])
 
     # $0 -bl
     elif args.blocklist:
-        retcode, results = utils.getBlocklist()
-        if not cfg.SILENT: print(results)
-        exit(retcode)
+        retcode, out, err = utils.getBlocklist()
+        cfg.exitMsg(out + err, retcode)
 
     # Default usage: $0 [hotspot] [-i [interface]]
-    else:
-        hotspot = cfg.DEFAULT_LOGIN
-        interface = cfg.IF
-        if len(args.hotspot) > 0:
-            hotspot = args.hotspot[0]
-        if len(args.hotspot) > 1:
-            interface = args.hotspot[1]
+    hotspot = cfg.DEFAULT_LOGIN
+    interface = cfg.IF
+    if len(args.hotspot) > 0:
+        hotspot = args.hotspot[0]
+    if len(args.hotspot) > 1:
+        interface = args.hotspot[1]
 
-        try:
-            success = utils.connect(cfg.LOGIN_INFO[hotspot], interface)
-        except KeyError:
-            print("Unknown hotspot: " + hotspot)
-            exit(1)
-        except: exit(2)
+    try:
+        success = utils.connect(cfg.LOGIN_INFO[hotspot], interface)
+    except KeyError:
+        cfg.exitMsg("Unknown hotspot: " + hotspot, cfg.ERRORS['GENERAL'])
+    except: exit(cfg.ERRORS['USAGE'])
 
-        if success and not cfg.SILENT:
-            print("Logged in.")
-            exit(0)
-        else: exit(5)
+    if success:
+        cfg.exitMsg("Logged in.", cfg.ERRORS['SUCCESS'])
+    else: exit(cfg.ERRORS['LOGINFAIL'])
 
-    if not cfg.SILENT: parser.print_help()
-    exit(1)
+    cfg.exitMsg(parser.print_help(), cfg.ERRORS['USAGE'])
 
 if __name__ == '__main__':
     try:
